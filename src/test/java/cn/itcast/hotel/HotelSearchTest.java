@@ -14,13 +14,17 @@ import org.elasticsearch.index.query.QueryBuilder;
 import org.elasticsearch.index.query.QueryBuilders;
 import org.elasticsearch.search.SearchHit;
 import org.elasticsearch.search.SearchHits;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightBuilder;
+import org.elasticsearch.search.fetch.subphase.highlight.HighlightField;
 import org.elasticsearch.search.sort.SortOrder;
 import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.test.context.SpringBootTest;
+import org.springframework.util.CollectionUtils;
 
 import java.io.IOException;
+import java.util.Map;
 
 @SpringBootTest
 public class HotelSearchTest {
@@ -86,15 +90,22 @@ public class HotelSearchTest {
 
     }
 
+    @Test
+    void testHighLight() throws IOException {
+
+        SearchRequest request = new SearchRequest("hotel");
+        // 2.准备DsL
+        // 2.1 query
+        request.source().query(QueryBuilders.matchQuery("all","如家"));
+        // 2.2 sort
+        request.source().highlighter(new HighlightBuilder().field("name").requireFieldMatch(false));
+        // 2.3 page
+        // 3 发送请求
+        SearchResponse response = client.search(request, RequestOptions.DEFAULT);
+        handleResponse(response);
 
 
-
-
-
-
-
-
-
+    }
 
     private void handleResponse(SearchResponse response) {
         // 解析response
@@ -105,8 +116,25 @@ public class HotelSearchTest {
         SearchHit[] hits = searchHits.getHits();
         // 遍历文档数组
         for (SearchHit hit : hits) {
+            // 获取jsonString,转实体对象
             String json = hit.getSourceAsString();
             HotelDoc hotelDoc = JSON.parseObject(json, HotelDoc.class);
+
+            // 获取高亮结果
+            Map<String, HighlightField> highlightFields = hit.getHighlightFields();
+
+            if (!CollectionUtils.isEmpty(highlightFields)){
+                // 获取高亮字段
+                HighlightField highlightField = highlightFields.get("name");
+                if (highlightField != null){
+                    // 获取高亮值
+                    String name = highlightField.getFragments()[0].toString();
+                    hotelDoc.setName(name);
+                }
+
+            }
+
+
             System.out.println(hotelDoc);
         }
     }
